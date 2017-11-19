@@ -151,7 +151,28 @@ class PacketUtils:
     # ttl is a ttl which triggers the Great Firewall but is before the
     # server itself (from a previous traceroute incantation
     def evade(self, target, msg, ttl):
-        return "NEED TO IMPLEMENT"
+        source = random.randint(2000, 30000)
+        sequence = random.randint(1, 31313131)
+        self.send_packet(flags="S", seq=sequence, sport=source, dip=target)
+        packet = self.get_packet()
+        if packet:
+            y = packet[TCP].seq
+            sequence += 1
+            self.send_packet(flags="A", seq=sequence, ack=y+1, sport=source)
+        else:
+            return "DEAD"
+
+        for c in msg:
+           sequence += 1
+           self.send_packet(payload=c, seq=sequence, sport=source)
+           self.send_packet(payload=c, seq=sequence, sport=source, ttl=ttl)
+
+        return_message = []
+        packet = self.get_packet()
+        while(packet):
+            return_message += packet[Raw].load
+            packet = self.get_packet()
+        return return_message
         
     # Returns "DEAD" if server isn't alive,
     # "LIVE" if teh server is alive,
@@ -160,7 +181,7 @@ class PacketUtils:
         # self.send_msg([triggerfetch], dst=target, syn=True)
 	source = random.randint(2000, 30000)
 	sequence = random.randint(1, 31313131)
-        self.send_packet(flags = "S", seq = sequence, sport = source, dip=target)
+        self.send_packet(flags="S", seq=sequence, sport=source, dip=target)
         
         packet = self.get_packet()
         if packet == None: return "DEAD"
