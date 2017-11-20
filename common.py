@@ -220,20 +220,19 @@ class PacketUtils:
         for i in range(1, hops):
             for _ in range(3): self.send_packet(sport = source, ack = y + 1, flags = "A", seq = seq + 1, ttl = i, payload = triggerfetch, dip=target)
             packet = self.get_packet(1)
-            icmp_found = False
-            rst_found = False
+            icmp_not_found = True
+            rst_not_found = True
             while(packet):
-                if not icmp_found and isTimeExceeded(packet):
+                if icmp_not_found and isTimeExceeded(packet):
                     ip_list += [packet[IP].src]
                     rst_list += [False]
-                    icmp_found = True 
-                if not rst_found and isRST(packet):
+                    icmp_not_found = False 
+                if rst_not_found and isRST(packet):
                     ip_list += [packet[IP].src]
                     rst_list += [True]
-                    rst_found = True
+                    rst_not_found = False
                 packet = self.get_packet(1)
-            if not icmp_found and not rst_found:
+            if icmp_not_found and rst_not_found:
                 ip_list += ['*']
                 rst_list += [False]
-#            if packet and packet[IP].src == target: reached = True
         return (ip_list, rst_list)
