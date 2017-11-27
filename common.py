@@ -153,7 +153,9 @@ class PacketUtils:
     def evade(self, target, msg, ttl):
         source = random.randint(2000, 30000)
         sequence = random.randint(1, 31313131)
+
         self.send_packet(flags="S", seq=sequence, sport=source, dip=target)
+        
         packet = self.get_packet()
         if packet:
             y = packet[TCP].seq
@@ -163,15 +165,19 @@ class PacketUtils:
             return "DEAD"
 
         for c in msg:
-           sequence += 1
-           self.send_packet(payload=c, seq=sequence, sport=source)
-           self.send_packet(payload=c, seq=sequence, sport=source, ttl=ttl)
+           self.send_packet(payload=c, seq=sequence, sport=source, flags="P")
+           self.send_packet(payload='a', seq=sequence, sport=source, ttl=ttl, flags="P")
+           sequence+= 1
 
         return_message = []
-        packet = self.get_packet()
+        packet = self.get_packet(1)
         while(packet):
-            return_message += packet[Raw].load
-            packet = self.get_packet()
+            if isTimeExceeded(packet): return_message += ["te"]
+            elif isRST(packet): return_mesage += ["rst"]
+            elif Raw in packet: return_message += [packet[Raw].load]
+            else: return_message += ["whatthefuckm8"]
+            #return_message += packet[Raw].load
+            packet = self.get_packet(1)
         return return_message
         
     # Returns "DEAD" if server isn't alive,
@@ -181,14 +187,13 @@ class PacketUtils:
         # self.send_msg([triggerfetch], dst=target, syn=True)
 	source = random.randint(2000, 30000)
 	sequence = random.randint(1, 31313131)
-        self.send_packet(flags="S", seq=sequence, sport=source, dip=target)
-        
+        self.send_packet(flags="S", seq=sequence, sport=source, dip=target) 
         packet = self.get_packet()
         if packet == None: return "DEAD"
         
         self.send_packet(payload = triggerfetch, flags = "A",
                          seq = sequence + 1, ack = packet[TCP].seq + 1,
-                         sport = source)
+                         sport = source, dip=target)
         time.sleep(1)
         packet = self.get_packet()
 	rst_count = 0
@@ -196,7 +201,7 @@ class PacketUtils:
             if isRST(packet): return "FIREWALL"
             packet = self.get_packet()
         return "LIVE"
-
+        
     # Format is
     # ([], [])
     # The first list is the list of IPs that have a hop
@@ -207,32 +212,45 @@ class PacketUtils:
         ip_list = []
         rst_list = []
 
-        source = random.randint(2000, 30000)
-        seq = random.randint(1, 31313131)
-        self.send_packet(sport = source, seq = seq, flags = "S", dip=target)
-        packet = self.get_packet(1)
-        if packet:
-            y = packet[TCP].seq
-        else:
-            return 'what the fuck'
-
-	reached = False
+#        source = random.randint(2000, 30000)
+#        seq = random.randint(1, 31313131)
         for i in range(1, hops):
-            for _ in range(3): self.send_packet(sport = source, ack = y + 1, flags = "A", seq = seq + 1, ttl = i, payload = triggerfetch, dip=target)
-            packet = self.get_packet(1)
+            source = random.randint(2000, 30000)
+            seq = random.randint(1, 31313131)
+            for _ in range(3):
+                self.send_packet(sport=source, seq=seq,
+                             flags="S", dip=target)
+                packet = self.get_packet(1)
+                if packet:
+                    y = packet[TCP].seq
+                else:
+                    continue
+                self.send_packet(sport=source, ack=y+1,
+                             flags="A", seq=seq+1)
+                break;
+            
+            for _ in range(3):
+                self.send_packet(sport=source, ack=y+1,
+                                 flags="PA", seq=seq+1,
+                                 ttl=i,
+                                 payload=triggerfetch,
+                                 dip=target)
             icmp_not_found = True
             rst_not_found = True
+            packet = self.get_packet()
             while(packet):
                 if icmp_not_found and isTimeExceeded(packet):
                     ip_list += [packet[IP].src]
-                    rst_list += [False]
                     icmp_not_found = False 
                 if rst_not_found and isRST(packet):
-                    ip_list += [packet[IP].src]
                     rst_list += [True]
                     rst_not_found = False
-                packet = self.get_packet(1)
-            if icmp_not_found and rst_not_found:
+                packet = self.get_packet()
+
+            if not icmp_not_found and rst_not_found:
+                rst_list += [False]
+            elif icmp_not_found and rst_not_found:
                 ip_list += ['*']
                 rst_list += [False]
+
         return (ip_list, rst_list)

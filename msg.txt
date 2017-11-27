@@ -1,3 +1,1 @@
-GET /search?q=falun+gong HTTP/1.1
-CONNECTION: keep-alive
-HOST: www.google.com
+GET /search?q=falun+gong HTTP/1.1/r/nCONNECTION: keep-alive/r/nHOST: www.google.com/r/n/r/n
