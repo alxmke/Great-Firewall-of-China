@@ -153,30 +153,33 @@ class PacketUtils:
     def evade(self, target, msg, ttl):
         source = random.randint(2000, 30000)
         sequence = random.randint(1, 31313131)
-
-        self.send_packet(flags="S", seq=sequence, sport=source, dip=target)
-        
-        packet = self.get_packet()
-        if packet:
-            y = packet[TCP].seq
-            sequence += 1
-            self.send_packet(flags="A", seq=sequence, ack=y+1, sport=source)
-        else:
-            return "DEAD"
+        for _ in range(3):
+            self.send_packet(flags="S", seq=sequence,
+                             sport=source, dip=target)
+            packet = self.get_packet()
+            if packet:
+                y = packet[TCP].seq
+                sequence += 1
+                self.send_packet(flags="A",
+                                 seq=sequence,
+                                 ack=y+1, sport=source)
+            else:
+                continue
+            break
 
         for c in msg:
-           self.send_packet(payload=c, seq=sequence, sport=source, flags="P")
-           self.send_packet(payload='a', seq=sequence, sport=source, ttl=ttl, flags="P")
+           self.send_packet(payload=c, seq=sequence,
+                            sport=source, flags="PA",
+                            ack=y+1)
+           self.send_packet(payload='A', seq=sequence,
+                            sport=source, ttl=ttl,
+                            flags="PA", ack=y+1)
            sequence+= 1
 
-        return_message = []
+        return_message = None
         packet = self.get_packet(1)
         while(packet):
-            if isTimeExceeded(packet): return_message += ["te"]
-            elif isRST(packet): return_mesage += ["rst"]
-            elif Raw in packet: return_message += [packet[Raw].load]
-            else: return_message += ["whatthefuckm8"]
-            #return_message += packet[Raw].load
+            if Raw in packet: return_message = packet[Raw].load
             packet = self.get_packet(1)
         return return_message
         
@@ -250,7 +253,7 @@ class PacketUtils:
             if not icmp_not_found and rst_not_found:
                 rst_list += [False]
             elif icmp_not_found and rst_not_found:
-                ip_list += ['*']
+                ip_list += [None]
                 rst_list += [False]
 
         return (ip_list, rst_list)
